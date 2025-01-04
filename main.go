@@ -1,9 +1,7 @@
 package main
 
-import (
-	"fmt"
-)
-
 func main() {
-	fmt.Println("Hello World!")
+	logger := Logger{silent: false}
+	logger.Info("This is an info message")
+	logger.Warn("This is a warning message")
 }
