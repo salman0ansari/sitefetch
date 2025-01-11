@@ -116,13 +116,7 @@ func fetchPage(urlStr string, logger *Logger, opts Options) {
 		finalTitle = pageTitle
 	}
 
-	// sve the page.
-	u, _ := url.Parse(urlStr)
-	if u.Path == "/" {
-		u.Path = ""
-	}
-
-	norm := u.Scheme + "://" + u.Host + u.Path
+	norm := normalizeURL(urlStr)
 	pagesMu.Lock()
 	pages[norm] = Page{
 		Title:   finalTitle,

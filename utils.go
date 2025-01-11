@@ -1,6 +1,10 @@
 package main
 
-import "github.com/tiktoken-go/tokenizer"
+import (
+	"net/url"
+
+	"github.com/tiktoken-go/tokenizer"
+)
 
 func countTokens(text string) int {
 	enc, err := tokenizer.Get(tokenizer.O200kBase)
@@ -9,4 +13,15 @@ func countTokens(text string) int {
 	}
 	ids, _, _ := enc.Encode(text)
 	return len(ids)
+}
+
+func normalizeURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+	if u.Path == "/" {
+		u.Path = ""
+	}
+	return u.Scheme + "://" + u.Host + u.Path
 }

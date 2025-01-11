@@ -75,12 +75,8 @@ func main() {
 }
 
 func enqueue(urlStr string, opts Options) {
-	u, _ := url.Parse(urlStr)
-	if u.Path == "/" {
-		u.Path = ""
-	}
 
-	norm := u.Scheme + "://" + u.Host + u.Path
+	norm := normalizeURL(urlStr)
 
 	visitedMu.Lock()
 	// Do nothing if this URL is already in the queue or processed.
