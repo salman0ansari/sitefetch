@@ -15,6 +15,8 @@ import (
 type Options struct {
 	Concurrency int
 	Silent      bool
+	Limit       int
+	Matches     []string
 }
 
 type Page struct {

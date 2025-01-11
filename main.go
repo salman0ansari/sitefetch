@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"net/url"
 	"os"
-	"strings"
 	"sync"
+
+	"github.com/gobwas/glob"
 )
 
 var (
@@ -17,6 +17,13 @@ var (
 	pagesMu   sync.Mutex
 )
 
+func worker(logger *Logger, opts Options) {
+	for urlStr := range tasks {
+		fetchPage(urlStr, logger, opts)
+		wg.Done()
+	}
+}
+
 func main() {
 	logger := &Logger{silent: false}
 
@@ -27,25 +34,17 @@ func main() {
 		Silent:      false,
 	}
 
-	// Create the FIFO tasks channel and spawn worker goroutines.
 	tasks = make(chan string, 100)
 	for i := 0; i < opts.Concurrency; i++ {
-		for urlStr := range tasks {
-			fetchPage(urlStr, logger, opts)
-			wg.Done()
-		}
+		worker(logger, opts)
 	}
 
 	logger.Info("Started fetching", siteURL, " with a concurrency of ", opts.Concurrency)
+	enqueue(siteURL, true, opts, logger)
 
-	// Enqueue the initial URL (skip match for the entry point).
-	enqueue(siteURL, opts)
-
-	// Wait for all queued tasks to be processed.
 	wg.Wait()
 	close(tasks)
 
-	// Compute total token count.
 	totalTokens := 0
 	pagesMu.Lock()
 	for _, page := range pages {
@@ -53,56 +52,60 @@ func main() {
 	}
 	count := len(pages)
 	pagesMu.Unlock()
-	logger.Info("Total token count for ", count, " pages: ", totalTokens)
+	logger.Info("Total token count for ", count, " pages: ", formatNumber(totalTokens))
 
-	// Serialize pages and write to file if requested.
 	outfile := "pages.txt"
-	var results []string
-	for _, p := range pages {
-		pageStr := fmt.Sprintf(`<page>
-  <title>%s</title>
-  <url>%s</url>
-  <content>%s</content>
-</page>`, p.Title, p.URL, p.Content)
-		results = append(results, pageStr)
-	}
+	result := serializePages(pages)
 
-	if err := os.WriteFile(outfile, []byte(strings.Join(results, "")), 0644); err != nil {
+	if err := os.WriteFile(outfile, []byte(result), 0644); err != nil {
 		logger.Warn("Failed to write file:", err)
 		return
 	}
 
 }
 
-func enqueue(urlStr string, opts Options) {
-
+func enqueue(urlStr string, skipMatch bool, opts Options, logger *Logger) {
 	norm := normalizeURL(urlStr)
 
 	visitedMu.Lock()
-	// Do nothing if this URL is already in the queue or processed.
 	if visited[norm] {
 		visitedMu.Unlock()
 		return
 	}
 
-	// If this is not the initial URL and match options are provided, test them.
-	u, err := url.Parse(urlStr)
-	if err != nil {
-		visitedMu.Unlock()
-		return
-	}
-	matched := false
-	if !matched {
-		visitedMu.Unlock()
-		return
+	if !skipMatch && len(opts.Matches) > 0 {
+		u, err := url.Parse(urlStr)
+		if err != nil {
+			visitedMu.Unlock()
+			return
+		}
+		matched := false
+		for _, pattern := range opts.Matches {
+			g, err := glob.Compile(pattern)
+			if err != nil {
+				continue
+			}
+			if g.Match(u.Path) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			visitedMu.Unlock()
+			return
+		}
 	}
 	visited[norm] = true
 	visitedMu.Unlock()
 
-	// Check if we have reached the page limit.
 	pagesMu.Lock()
+	if opts.Limit > 0 && len(pages) >= opts.Limit {
+		pagesMu.Unlock()
+		return
+	}
 	pagesMu.Unlock()
 
+	logger.Info("Fetching ", urlStr)
 	wg.Add(1)
 	tasks <- urlStr
 }
