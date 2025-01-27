@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -27,7 +29,12 @@ func worker(logger *Logger, opts Options) {
 
 func main() {
 	logger := &Logger{silent: false}
+	outfile := "pages.txt"
+	concurrency := 3
 	match := ""
+	selector := ""
+	limit := 10
+	silent := false
 
 	siteURL := "https://hisalman.in"
 	var matches []string
@@ -42,17 +49,20 @@ func main() {
 	}
 
 	opts := Options{
-		Concurrency: 3,
-		Silent:      false,
-		Matches:     matches,
+		Concurrency:     concurrency,
+		Matches:         matches,
+		ContentSelector: selector,
+		Limit:           limit,
+		Silent:          silent,
 	}
 
 	tasks = make(chan string, 100)
-	for i := 0; i < opts.Concurrency; i++ {
-		worker(logger, opts)
+	for i := 0; i < concurrency; i++ {
+		go worker(logger, opts)
 	}
 
-	logger.Info("Started fetching", siteURL, " with a concurrency of ", opts.Concurrency)
+	logger.Info("Started fetching", siteURL, "with a concurrency of", concurrency)
+
 	enqueue(siteURL, true, opts, logger)
 
 	wg.Wait()
@@ -67,12 +77,18 @@ func main() {
 	pagesMu.Unlock()
 	logger.Info("Total token count for ", count, " pages: ", formatNumber(totalTokens))
 
-	outfile := "pages.txt"
-	result := serializePages(pages)
-
-	if err := os.WriteFile(outfile, []byte(result), 0644); err != nil {
-		logger.Warn("Failed to write file:", err)
-		return
+	output := serializePages(pages)
+	if outfile != "" {
+		if err := os.MkdirAll(filepath.Dir(outfile), os.ModePerm); err != nil {
+			logger.Warn("Failed to create directory:", err)
+			return
+		}
+		if err := os.WriteFile(outfile, []byte(output), 0644); err != nil {
+			logger.Warn("Failed to write file:", err)
+			return
+		}
+	} else {
+		fmt.Println(output)
 	}
 
 }

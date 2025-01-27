@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -10,13 +11,15 @@ import (
 	markdown "github.com/JohannesKaufmann/html-to-markdown"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/go-shiori/go-readability"
+	"golang.org/x/net/html"
 )
 
 type Options struct {
-	Concurrency int
-	Silent      bool
-	Limit       int
-	Matches     []string
+	Concurrency     int
+	Silent          bool
+	Limit           int
+	Matches         []string
+	ContentSelector string
 }
 
 type Page struct {
@@ -92,6 +95,20 @@ func fetchPage(urlStr string, logger *Logger, opts Options) {
 	pageTitle := doc.Find("title").Text()
 
 	var htmlContent string
+
+	if opts.ContentSelector != "" {
+		selection := doc.Find(opts.ContentSelector).First()
+		if selection.Length() > 0 {
+			var buf bytes.Buffer
+			for _, node := range selection.Nodes {
+				if err := html.Render(&buf, node); err == nil {
+					htmlContent = buf.String()
+					break
+				}
+			}
+		}
+	}
+
 	if htmlContent == "" {
 		htmlContent, err = doc.Html()
 		if err != nil {
