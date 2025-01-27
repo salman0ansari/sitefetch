@@ -3,6 +3,7 @@ package main
 import (
 	"net/url"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/gobwas/glob"
@@ -26,12 +27,24 @@ func worker(logger *Logger, opts Options) {
 
 func main() {
 	logger := &Logger{silent: false}
+	match := ""
 
 	siteURL := "https://hisalman.in"
+	var matches []string
+	if match != "" {
+		parts := strings.Split(match, ",")
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				matches = append(matches, p)
+			}
+		}
+	}
 
 	opts := Options{
 		Concurrency: 3,
 		Silent:      false,
+		Matches:     matches,
 	}
 
 	tasks = make(chan string, 100)
