@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/gobwas/glob"
 	"github.com/tiktoken-go/tokenizer"
 )
 
@@ -49,4 +50,50 @@ func serializePages(pages map[string]Page) string {
 		results = append(results, pageStr)
 	}
 	return strings.Join(results, "\n\n")
+}
+
+func enqueue(urlStr string, skipMatch bool, opts Options, logger *Logger) {
+	norm := normalizeURL(urlStr)
+
+	visitedMu.Lock()
+	if visited[norm] {
+		visitedMu.Unlock()
+		return
+	}
+
+	if !skipMatch && len(opts.Matches) > 0 {
+		u, err := url.Parse(urlStr)
+		if err != nil {
+			visitedMu.Unlock()
+			return
+		}
+		matched := false
+		for _, pattern := range opts.Matches {
+			g, err := glob.Compile(pattern)
+			if err != nil {
+				continue
+			}
+			if g.Match(u.Path) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			visitedMu.Unlock()
+			return
+		}
+	}
+	visited[norm] = true
+	visitedMu.Unlock()
+
+	pagesMu.Lock()
+	if opts.Limit > 0 && len(pages) >= opts.Limit {
+		pagesMu.Unlock()
+		return
+	}
+	pagesMu.Unlock()
+
+	logger.Info("Fetching ", urlStr)
+	wg.Add(1)
+	tasks <- urlStr
 }

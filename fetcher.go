@@ -90,12 +90,12 @@ func fetchPage(urlStr string, logger *Logger, opts Options) {
 		if absURL.Host != parsedURL.Host {
 			return
 		}
+		enqueue(absURL.String(), false, opts, logger)
 	})
 
 	pageTitle := doc.Find("title").Text()
 
 	var htmlContent string
-
 	if opts.ContentSelector != "" {
 		selection := doc.Find(opts.ContentSelector).First()
 		if selection.Length() > 0 {
@@ -108,7 +108,6 @@ func fetchPage(urlStr string, logger *Logger, opts Options) {
 			}
 		}
 	}
-
 	if htmlContent == "" {
 		htmlContent, err = doc.Html()
 		if err != nil {
@@ -137,10 +136,12 @@ func fetchPage(urlStr string, logger *Logger, opts Options) {
 
 	norm := normalizeURL(urlStr)
 	pagesMu.Lock()
-	pages[norm] = Page{
-		Title:   finalTitle,
-		URL:     urlStr,
-		Content: mdContent,
+	if opts.Limit == 0 || len(pages) < opts.Limit {
+		pages[norm] = Page{
+			Title:   finalTitle,
+			URL:     urlStr,
+			Content: mdContent,
+		}
 	}
 	pagesMu.Unlock()
 }
