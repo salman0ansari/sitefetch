@@ -28,7 +28,7 @@ sitefetch https://hisalman.in --outfile site.txt --concurrency 10
 Use the `--match` flag to specify the pages you want to fetch:
 
 ```bash
-sitefetch https://vite.dev -m "/blog/**" -m "/guide/**"
+sitefetch https://vite.dev --match "/blog/**,/guide/**"
 ```
 
 ### Content selector
